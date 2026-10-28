@@ -1,24 +1,36 @@
-package com.csw434_Lab2
+package com.csw434_lab2
 
-import com.facebook.react.bridge.*
+import android.util.Log
+import android.view.WindowManager
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
 
-class BrightnessModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
+class BrightnessModule(reactContext: ReactApplicationContext) :
+    ReactContextBaseJavaModule(reactContext) {
+
   override fun getName(): String = "BrightnessModule"
 
   @ReactMethod
   fun setBrightness(brightnessValue: Double) {
-    Log.d("BrightnessModule", "Gia tri nhan duoc tu JS: $brightnessValue")
-    val activity = reactApplicationContext.currentActivity ?: return
-    val floatBrightness = brightnessValue.toFloat()
+    // Clamp to valid range [0.01, 1.0]
+    val clamped = brightnessValue.toFloat().coerceIn(0.01f, 1.0f)
+    Log.d("BrightnessModule", "setBrightness called: $clamped")
 
-    activity.runOnUiThread {
+    // Re-fetch currentActivity INSIDE the UI thread block to avoid stale reference
+    val appContext = reactApplicationContext
+    appContext.currentActivity?.runOnUiThread {
+      // Fetch again inside the lambda — safest pattern in React Native
+      val act = appContext.currentActivity ?: return@runOnUiThread
       try {
-        val layoutParams = activity.window.attributes
-        layoutParams.screenBrightness = floatBrightness
-        activity.window.attributes = layoutParams
+        val win = act.window
+        val lp = win.attributes
+        lp.screenBrightness = clamped
+        win.attributes = lp
+        Log.d("BrightnessModule", "screenBrightness set to $clamped")
       } catch (e: Exception) {
-        e.printStackTrace()
+        Log.e("BrightnessModule", "Error setting brightness", e)
       }
     }
   }
-}
+}

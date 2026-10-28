@@ -20,7 +20,7 @@ const BatteryScreen = () => {
         setBatteryLevel(Math.round(level));
       }
     } catch (error) {
-      console.error('Lỗi lấy phần trăm pin:', error);
+      console.error('Cannot get battery percentage:', error);
     }
   };
 
@@ -31,10 +31,7 @@ const BatteryScreen = () => {
 
         <View style={styles.batteryContainer}>
           <View style={styles.batteryBody}>
-            {/* Vạch phát sáng đỉnh pin */}
             <View style={styles.batteryCapGlow} />
-
-            {/* Mức pin dâng lên */}
             <View style={[styles.batteryFill, { height: `${batteryLevel}%` }]}>
               <Text style={styles.percentageText}>{batteryLevel}</Text>
               <Text style={styles.percentSymbol}>%</Text>

@@ -5,12 +5,11 @@ import Slider from '@react-native-community/slider';
 const { BrightnessModule } = NativeModules;
 
 const BrightnessScreen = () => {
-  const [brightness, setBrightness] = useState(0.5); // Nên để khởi tạo 0.5 (50%) cho tự nhiên
+  const [brightness, setBrightness] = useState(0.5);
 
   const handleValueChange = value => {
     setBrightness(value);
 
-    // Gọi trực tiếp khi kéo để thấy độ sáng thay đổi realtime
     if (
       BrightnessModule &&
       typeof BrightnessModule.setBrightness === 'function'
@@ -25,10 +24,32 @@ const BrightnessScreen = () => {
     <View style={styles.container}>
       <View style={styles.topCard}>
         <View style={styles.sunOuterContainer}>
-          <View style={styles.sunRaysCircle}>
-            <View style={styles.sunInnerCircle}>
-              <Text style={styles.percentageText}>{percentValue}%</Text>
-            </View>
+          <View
+            style={[styles.rayWrapper, { transform: [{ rotate: '0deg' }] }]}
+          >
+            <View style={styles.rayTop} />
+            <View style={styles.rayBottom} />
+          </View>
+          <View
+            style={[styles.rayWrapper, { transform: [{ rotate: '45deg' }] }]}
+          >
+            <View style={styles.rayTop} />
+            <View style={styles.rayBottom} />
+          </View>
+          <View
+            style={[styles.rayWrapper, { transform: [{ rotate: '90deg' }] }]}
+          >
+            <View style={styles.rayTop} />
+            <View style={styles.rayBottom} />
+          </View>
+          <View
+            style={[styles.rayWrapper, { transform: [{ rotate: '135deg' }] }]}
+          >
+            <View style={styles.rayTop} />
+            <View style={styles.rayBottom} />
+          </View>
+          <View style={styles.sunInnerCircle}>
+            <Text style={styles.percentageText}>{percentValue}%</Text>
           </View>
         </View>
       </View>
@@ -40,7 +61,7 @@ const BrightnessScreen = () => {
 
           <Slider
             style={styles.slider}
-            minimumValue={0.01} // Đánh trống giá trị 0 tuyệt đối để tránh màn hình tối đen
+            minimumValue={0.01}
             maximumValue={1}
             value={brightness}
             onValueChange={handleValueChange}
@@ -74,16 +95,29 @@ const styles = StyleSheet.create({
     height: 170,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
-  sunRaysCircle: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    borderWidth: 3,
-    borderColor: '#8E8E93',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
+  rayWrapper: {
+    position: 'absolute',
+    width: 3,
+    height: 170,
     alignItems: 'center',
+  },
+  rayTop: {
+    position: 'absolute',
+    top: 10,
+    width: 3,
+    height: 20,
+    backgroundColor: '#8E8E93',
+    borderRadius: 1.5,
+  },
+  rayBottom: {
+    position: 'absolute',
+    bottom: 10,
+    width: 3,
+    height: 20,
+    backgroundColor: '#8E8E93',
+    borderRadius: 1.5,
   },
   sunInnerCircle: {
     width: 100,
@@ -94,6 +128,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1,
   },
   percentageText: {
     fontSize: 18,

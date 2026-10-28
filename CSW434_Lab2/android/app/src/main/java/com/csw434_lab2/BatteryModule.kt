@@ -1,4 +1,4 @@
-package com.csw434_Lab2
+package com.csw434_lab2
 
 import android.content.Intent
 import android.content.IntentFilter
