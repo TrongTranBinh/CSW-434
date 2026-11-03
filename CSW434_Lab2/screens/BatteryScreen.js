@@ -1,13 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, NativeModules } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  NativeModules,
+  NativeEventEmitter,
+} from 'react-native';
 
 const { BatteryModule } = NativeModules;
+const batteryEmitter = new NativeEventEmitter(BatteryModule);
 
 const BatteryScreen = () => {
   const [batteryLevel, setBatteryLevel] = useState(80);
 
   useEffect(() => {
     fetchBatteryLevel();
+
+    if (BatteryModule) {
+      BatteryModule.startListening();
+    }
+
+    const subscription = batteryEmitter.addListener(
+      'BatteryLevelChanged',
+      level => {
+        setBatteryLevel(Math.round(level));
+      },
+    );
+
+    return () => {
+      subscription.remove();
+      if (BatteryModule) {
+        BatteryModule.stopListening();
+      }
+    };
   }, []);
 
   const fetchBatteryLevel = async () => {
@@ -32,10 +57,13 @@ const BatteryScreen = () => {
         <View style={styles.batteryContainer}>
           <View style={styles.batteryBody}>
             <View style={styles.batteryCapGlow} />
-            <View style={[styles.batteryFill, { height: `${batteryLevel}%` }]}>
-              <Text style={styles.percentageText}>{batteryLevel}</Text>
-              <Text style={styles.percentSymbol}>%</Text>
-            </View>
+            <View
+              style={[styles.batteryFill, { height: `${batteryLevel}%` }]}
+            />
+          </View>
+          <View style={styles.percentageContainer} pointerEvents="none">
+            <Text style={styles.percentageText}>{batteryLevel}</Text>
+            <Text style={styles.percentSymbol}>%</Text>
           </View>
         </View>
       </View>
@@ -76,6 +104,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     paddingBottom: 20,
+    position: 'relative',
   },
   batteryBody: {
     width: 150,
@@ -102,10 +131,14 @@ const styles = StyleSheet.create({
   batteryFill: {
     width: '100%',
     backgroundColor: '#00E5A3',
-    justifyContent: 'center',
-    alignItems: 'center',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+  },
+  percentageContainer: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 3,
   },
   percentageText: {
     fontSize: 48,
@@ -113,7 +146,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   percentSymbol: {
-    fontSize: 18,
+    fontSize: 48,
     color: '#FFFFFF',
     fontWeight: '600',
     marginTop: -4,
