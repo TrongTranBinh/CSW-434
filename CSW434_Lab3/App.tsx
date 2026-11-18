@@ -1,146 +1,240 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
-  Alert,
-  ScrollView,
+  TouchableOpacity,
+  DeviceEventEmitter,
+  Animated,
 } from 'react-native';
 import NativeNfcModule from './specs/NativeNfcModule';
 
-function App(): React.JSX.Element {
-  const [isSupported, setIsSupported] = useState<boolean | null>(null);
-  const [isEnabled, setIsEnabled] = useState<boolean | null>(null);
-  const [isReading, setIsReading] = useState(false);
-  const [tagData, setTagData] = useState<string | null>(null);
+export default function App() {
+  const [activeTab, setActiveTab] = useState<'nfc' | 'compass'>('compass');
 
-  // Kiểm tra NFC khi app khởi động
+  // --- State cho Exercise 1: NFC ---
+  const [nfcSupported, setNfcSupported] = useState<boolean>(false);
+  const [nfcEnabled, setNfcEnabled] = useState<boolean>(false);
+  const [tagData, setTagData] = useState<{ id: string; tech: string } | null>(null);
+
+  // --- State cho Exercise 2: Compass ---
+  const [heading, setHeading] = useState<number>(0);
+  const rotateAnim = useState(new Animated.Value(0))[0];
+
+  // Khởi tạo NFC Listener
   useEffect(() => {
-    const checkNfc = async () => {
+    async function checkNfc() {
       try {
         const supported = await NativeNfcModule.isSupported();
-        setIsSupported(supported);
-        if (supported) {
-          const enabled = await NativeNfcModule.isEnabled();
-          setIsEnabled(enabled);
-        }
+        const enabled = await NativeNfcModule.isEnabled();
+        setNfcSupported(supported);
+        setNfcEnabled(enabled);
       } catch (e) {
-        console.error('Lỗi kiểm tra NFC:', e);
+        console.warn(e);
       }
-    };
+    }
     checkNfc();
+
+    const nfcSub = DeviceEventEmitter.addListener('onNfcTagDetected', (data) => {
+      setTagData(data);
+    });
+
+    return () => nfcSub.remove();
   }, []);
 
-  const handleStartReading = async () => {
-    try {
-      setTagData(null);
-      setIsReading(true);
-      const result = await NativeNfcModule.startReading();
-      if (result.success) {
-        setTagData(result.payload ?? 'Không có dữ liệu NDEF');
-      } else {
-        Alert.alert('Lỗi', result.error ?? 'Không đọc được thẻ');
-      }
-    } catch (e: any) {
-      Alert.alert('Lỗi', e.message);
-    } finally {
-      setIsReading(false);
+  // Khởi tạo Compass Listener khi ở tab Compass
+  useEffect(() => {
+    if (activeTab === 'compass') {
+      NativeNfcModule.startCompass();
+      const compassSub = DeviceEventEmitter.addListener('onCompassChange', (data) => {
+        const degree = Math.round(data.heading);
+        setHeading(degree);
+        Animated.timing(rotateAnim, {
+          toValue: -degree, // Xoay ngược chiều kim đồng hồ để chữ N luôn chỉ hướng Bắc
+          duration: 100,
+          useNativeDriver: true,
+        }).start();
+      });
+
+      return () => {
+        NativeNfcModule.stopCompass();
+        compassSub.remove();
+      };
     }
+  }, [activeTab, rotateAnim]);
+
+  // Hàm tính hướng chữ (N, NE, E, SE, S, SW, W, NW)
+  const getDirectionText = (deg: number) => {
+    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const index = Math.round(deg / 45) % 8;
+    return directions[index];
   };
 
-  const handleStopReading = async () => {
-    await NativeNfcModule.stopReading();
-    setIsReading(false);
-  };
+  const spin = rotateAnim.interpolate({
+    inputRange: [-360, 360],
+    outputRange: ['-360deg', '360deg'],
+  });
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>NFC Reader</Text>
-
-        {/* Trạng thái thiết bị */}
-        <View style={styles.card}>
-          <Text style={styles.label}>Thiết bị hỗ trợ NFC:</Text>
-          <Text style={styles.value}>
-            {isSupported === null ? 'Đang kiểm tra...' : isSupported ? '✅ Có' : '❌ Không'}
+      {/* Thanh chuyển đổi giữa 2 Exercise */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'nfc' && styles.activeTab]}
+          onPress={() => setActiveTab('nfc')}>
+          <Text style={[styles.tabText, activeTab === 'nfc' && styles.activeTabText]}>
+            Ex 1: NFC Reader
           </Text>
-
-          <Text style={styles.label}>NFC đang bật:</Text>
-          <Text style={styles.value}>
-            {isEnabled === null ? 'Đang kiểm tra...' : isEnabled ? '✅ Có' : '❌ Chưa bật'}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'compass' && styles.activeTab]}
+          onPress={() => setActiveTab('compass')}>
+          <Text style={[styles.tabText, activeTab === 'compass' && styles.activeTabText]}>
+            Ex 2: Compass
           </Text>
-        </View>
+        </TouchableOpacity>
+      </View>
 
-        {/* Nút điều khiển */}
-        {isSupported && (
-          <TouchableOpacity
-            style={[styles.button, isReading && styles.buttonActive]}
-            onPress={isReading ? handleStopReading : handleStartReading}
-            disabled={!isEnabled}>
-            <Text style={styles.buttonText}>
-              {isReading ? '⏹ Dừng đọc' : '📡 Bắt đầu đọc thẻ NFC'}
+      {/* NỘI DUNG EXERCISE 1: NFC */}
+      {activeTab === 'nfc' && (
+        <View style={styles.content}>
+          <Text style={styles.headerTitle}>NFC Tag Reader</Text>
+          <View style={styles.card}>
+            <Text style={styles.statusText}>
+              NFC Supported: <Text style={styles.bold}>{nfcSupported ? 'Yes' : 'No'}</Text>
             </Text>
-          </TouchableOpacity>
-        )}
-
-        {isReading && (
-          <Text style={styles.hint}>
-            👉 Đưa thẻ NFC lại gần điện thoại...
-          </Text>
-        )}
-
-        {/* Hiển thị dữ liệu đọc được */}
-        {tagData !== null && (
-          <View style={styles.resultCard}>
-            <Text style={styles.resultTitle}>📄 Dữ liệu từ thẻ:</Text>
-            <Text style={styles.resultText}>{tagData}</Text>
+            <Text style={styles.statusText}>
+              NFC Enabled: <Text style={styles.bold}>{nfcEnabled ? 'Yes' : 'No'}</Text>
+            </Text>
           </View>
-        )}
-      </ScrollView>
+
+          <View style={styles.scanBox}>
+            <Text style={styles.scanInstruction}>
+              {tagData ? '✅ Đã quét được thẻ NFC!' : '📡 Hãy áp thẻ NFC vào mặt lưng điện thoại...'}
+            </Text>
+            {tagData && (
+              <View style={styles.tagResult}>
+                <Text style={styles.tagLabel}>Tag ID (UID):</Text>
+                <Text style={styles.tagValue}>{tagData.id}</Text>
+                <Text style={styles.tagLabel}>Technologies:</Text>
+                <Text style={styles.tagValue}>{tagData.tech}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* NỘI DUNG EXERCISE 2: COMPASS */}
+      {activeTab === 'compass' && (
+        <View style={styles.content}>
+          <Text style={styles.headerTitle}>Compass</Text>
+
+          <View style={styles.compassWrapper}>
+            {/* Vòng xoay la bàn */}
+            <Animated.View style={[styles.dial, { transform: [{ rotate: spin }] }]}>
+              <Text style={[styles.cardinal, styles.north]}>N</Text>
+              <Text style={[styles.cardinal, styles.east]}>E</Text>
+              <Text style={[styles.cardinal, styles.south]}>S</Text>
+              <Text style={[styles.cardinal, styles.west]}>W</Text>
+              <View style={styles.northIndicator} />
+            </Animated.View>
+
+            {/* Vòng tròn hiển thị số độ ở tâm */}
+            <View style={styles.centerCircle}>
+              <Text style={styles.degreeText}>{heading}°</Text>
+              <Text style={styles.directionText}>{getDirectionText(heading)}</Text>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  content: { padding: 20 },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 24,
-    color: '#1a1a1a',
-  },
-  card: {
-    backgroundColor: '#fff',
+  container: { flex: 1, backgroundColor: '#F4F7FB' },
+  tabBar: {
+    flexDirection: 'row',
+    margin: 16,
+    backgroundColor: '#E2E8F0',
     borderRadius: 12,
+    padding: 4,
+  },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
+  activeTab: { backgroundColor: '#FFFFFF', elevation: 2 },
+  tabText: { fontSize: 15, fontWeight: '600', color: '#64748B' },
+  activeTabText: { color: '#0F172A' },
+  content: { flex: 1, alignItems: 'center', paddingHorizontal: 20, paddingTop: 20 },
+  headerTitle: { fontSize: 24, fontWeight: '700', color: '#1E293B', marginBottom: 30 },
+  card: {
+    width: '100%',
+    backgroundColor: '#FFF',
     padding: 16,
-    marginBottom: 20,
+    borderRadius: 12,
+    marginBottom: 24,
     elevation: 2,
   },
-  label: { fontSize: 14, color: '#666', marginTop: 8 },
-  value: { fontSize: 18, fontWeight: '600', color: '#1a1a1a', marginBottom: 8 },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 12,
+  statusText: { fontSize: 16, color: '#334155', marginVertical: 4 },
+  bold: { fontWeight: '700', color: '#0284C7' },
+  scanBox: {
+    width: '100%',
+    padding: 24,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderStyle: 'dashed',
     alignItems: 'center',
-    marginBottom: 16,
   },
-  buttonActive: { backgroundColor: '#FF3B30' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  hint: { textAlign: 'center', color: '#666', fontStyle: 'italic', marginBottom: 16 },
-  resultCard: {
-    backgroundColor: '#E8F5E9',
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#4CAF50',
+  scanInstruction: { fontSize: 16, color: '#475569', textAlign: 'center' },
+  tagResult: { marginTop: 20, width: '100%', backgroundColor: '#F1F5F9', padding: 14, borderRadius: 10 },
+  tagLabel: { fontSize: 13, color: '#64748B', marginTop: 6 },
+  tagValue: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+  // Styles cho Compass
+  compassWrapper: {
+    width: 280,
+    height: 280,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
   },
-  resultTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8, color: '#2E7D32' },
-  resultText: { fontSize: 15, color: '#1a1a1a', fontFamily: 'monospace' },
+  dial: {
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+  },
+  cardinal: { position: 'absolute', fontSize: 20, fontWeight: '800' },
+  north: { top: 14, color: '#EF4444' },
+  south: { bottom: 14, color: '#475569' },
+  east: { right: 18, color: '#475569' },
+  west: { left: 18, color: '#475569' },
+  northIndicator: {
+    position: 'absolute',
+    top: 42,
+    width: 4,
+    height: 16,
+    backgroundColor: '#EF4444',
+    borderRadius: 2,
+  },
+  centerCircle: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 6,
+  },
+  degreeText: { fontSize: 32, fontWeight: '800', color: '#1E293B' },
+  directionText: { fontSize: 16, fontWeight: '600', color: '#64748B', marginTop: 2 },
 });
-
-export default App;
