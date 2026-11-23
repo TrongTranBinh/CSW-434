@@ -111,7 +111,7 @@ export default function App() {
 
           <View style={styles.scanBox}>
             <Text style={styles.scanInstruction}>
-              {tagData ? '✅ Đã quét được thẻ NFC!' : '📡 Hãy áp thẻ NFC vào mặt lưng điện thoại...'}
+              {tagData ? 'NFC Detected!' : 'Please hold the NFC tag against your mobile phone...'}
             </Text>
             {tagData && (
               <View style={styles.tagResult}>
